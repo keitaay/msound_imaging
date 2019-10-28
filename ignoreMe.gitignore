@@ -1,0 +1,7 @@
+# Ignore system files
+.DS_store
+thumbs.db
+
+# Ignore mSOUND installation
+# (get it from github.com/m-SOUND/mSOUND)
+mSOUND/
