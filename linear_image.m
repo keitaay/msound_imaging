@@ -1,5 +1,4 @@
-close all; clear variables; clc
-addpath(genpath('C:\Users\kayokoya\Documents\mSOUND'));
+close all; clear variables; clc; addpath(genpath(pwd));
 
 %% grid
 % wave/transducer definition
@@ -27,14 +26,8 @@ reflOrder=1;
 P=Forward2D(mgrid, medium, exci.Pi, xdcr.mask, reflOrder,...
             'NRL', 'animation', 'correction');
 
+%% beamforming
 RF=msound_beamform(P,mgrid,medium,xdcr,exci);
 
-%% result
-bimg=20*log10(abs(hilbert(RF)));  x=1000*mgrid.x;  y=1e6*mgrid.t;
-close all; figure
-
-subplot(1,2,1); imagesc(x, y, RF);   title('RF'); caxis([-1e4 1e4])
-    axis image; colormap(gca,'gray'); xlabel('Lateral (mm)');
-    
-subplot(1,2,2); imagesc(x, y, bimg); title('B-mode')
-    axis image; colormap(gca,'gray'); xlabel('Lateral (mm)');
+%% Imaging
+msound_images(RF, mgrid);

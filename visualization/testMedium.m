@@ -1,5 +1,18 @@
 function testMedium(mgrid,medium,xdcr)
-    
+% TESTMEDIUM( mgrid, medium, xdcr )
+% 
+% Using an mSOUND set_grid object "mgrid" and structures "medium" and
+% "xdcr" (see respective functions), generate figures that map out
+% parameters that characterize the simulation field.
+%
+% Note that mSOUND uses five parameters (speed of sound, density,
+% nonlinearity coefficient, attenuation coefficient, attenuation exponent);
+% the sixth figure normalizes each of the five parameters, sums them
+% together, and creates a composite image that depicts changes in ANY of
+% the five values for each grid point.
+
+% 2019-10-28 - Keita Yokoyama (UNC/NCSU)
+%              initial version
 
     % create universal plot information
     vec_lat=1000*mgrid.x;
