@@ -5,14 +5,18 @@ mSOUND is a transient-mixed- and frequency-specific-mixed-domain (i.e. nonlinear
 
 The tutorials and examples packaged with mSOUND were primarily intended for beamforming and applied imaging scenarios, including photoacoustics and shear shock wave modeling. This toolset extends the capabilities of mSOUND by defining and imposing additional, medical imaging-related parameters into mSOUND variables and data formats. This addition may allow this toolbox to act as a nonlinear imaging simulator with capabilities similar to more popular software such as Field-II or k-wave.
 
-## General Structure
+# General Structure
 This repository is structured as follows:
 
-`mSOUND` - not included; should be downloaded either in the same folder level as others in this repository, or elsewhere.
-`shortcut` - shortcut functions to quickly define parameters relevant for both mSOUND and ultrasonic imaging.
-`visualization` - shortcut functions to generate simulation-relevant images, useful for debugging
+## Demonstration Files
+`linear_image.m` - runs a simulation of a pulse-echo sequence on a designated field of scatterers.
 
-`linear_image.m` - runs a simulation of a plane wave transmit on a designated field of scatterers
+## Subdirectories
+`mSOUND` - included as a submodule; should be downloaded either in the same folder level as others in this repository, or elsewhere.
+
+`shortcut` - shortcut functions to quickly define parameters relevant for both mSOUND and ultrasonic imaging.
+
+`visualization` - shortcut functions to generate simulation-relevant images, useful for debugging
 
 ## Shortcut
 `msound_medium` - using a `set_grid` custom object, this function creates a `medium` structure that incorporates information about the material properties being simulated in mSOUND.
@@ -23,5 +27,9 @@ This repository is structured as follows:
 
 `msound_beamform` - using the outputs from mSOUND-native function `Forward2D`, this function applies dynamic-receive beamforming on the collected, channel-based pressure waveforms.
 
+`msound_nDim` - using a `set_grid` custom object, determine the number of spatial dimensions that mSOUND will simulate. This is useful as a shortcut to easily generalize your code for multiple simulation setups.
+
 ## Visualization
 `testMedium.m` - using the `medium` structure required by mSOUND, generate 2-D images that display heterogeneous features that will be simulated.
+
+`msound_images.m` - generate raw RF and envelope-detected, log-compressed B-mode images from the beamformed output of an mSOUND simulation.

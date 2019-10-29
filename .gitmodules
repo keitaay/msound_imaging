@@ -1,0 +1,3 @@
+[submodule "mSOUND"]
+	path = mSOUND
+	url = https://github.com/m-SOUND/mSOUND.git
