@@ -1,4 +1,4 @@
 # Ignore system files
-*.DS_store
+**.DS_store
 thumbs.db
 mSOUND/

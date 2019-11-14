@@ -1,10 +1,13 @@
 function chanData = msound_get_chan(P, mgrid, xdcr)
-% chanData = MSOUND_BEAMFORM(P, mgrid, xdcr)
+% chanData = MSOUND_GET_CHAN(P, mgrid, xdcr)
 % 
-% Beamform RF data using channel data acquired from an mSOUND simulation.
+% Consolidate reshaped mSOUND pressure output so that there is only one
+% waveform per channel.
 %
-% This script only works for delay-sum beamforming with dynamic-focus
-% receive.
+% Each position in an mSOUND simulation output encodes a point in the
+% mSOUND grid; in Field-II terminology, this amounts to raw simulation
+% outputs accounting for each individual subelement. This function converts
+% them into element-wise readouts.
 %
 % CAUTION: this code is intended only for simulations that are done
 %          ENTIRELY using mSOUND. Simulations that need to be coupled with
@@ -22,18 +25,30 @@ function chanData = msound_get_chan(P, mgrid, xdcr)
     % define number of dimensions in simulation
     nD=msound_nDim(mgrid);
     
-    % average pressure waveform readings across the axial
-    % thickness of the transducer (region of pressure recording)
-    P_red=permute( mean(P,2), [1,3,4,2]);
+    % concatenate waveforms from all lines into single matrix
+%ACCOUNT FOR ANGULAR SENSITIVITY HERE?
+    if iscell(P) % presumes all pressure output matrices have same dimensions
+        Nlines=length(P);
+        switch nD
+            case 1, P_red=nan([size(P{1}),1,1,Nlines]);
+            case 2, P_red=nan([size(P{1}), 1, Nlines]);
+            case 3, P_red=nan([size(P{1}),    Nlines]);
+        end
+        for line=1:Nlines, P_red(:,:,:,line)=P{line}; end
+    else, Nlines=1; P_red=P;
+    end
     
-    % get channel ID from transducer map
-    channels=unique(xdcr.chanmap(:));  channels=channels( channels>0 );
+    % average pressure waveform readings across transducer's
+    % axial thickness (AKA axial range of region of simulation recording)
+    % - dimensions: 1=time, 2=axial, 3=lateral, 4=elev., 5=line
+    P_red=permute( mean(P_red,2), [1,3,4,5,2]);
     
-    % reshape list of channels into shape of transducer
-    channels=reshape(channels, [xdcr.Nelem(1),xdcr.Nelem(2)]);
+    % get channel ID
+    channels=xdcr.chanID;
     
-    % for each channel in the lateral/elevation directions...
-    chanData=zeros(size(P_red,1), xdcr.Nelem(1), xdcr.Nelem(2));
+    % for each line + channel...
+    chanData=zeros(size(P_red,1), xdcr.Nelem(1), xdcr.Nelem(2), Nlines);
+    for line=1:Nlines
     for chL=1:size(channels,1)
     for chE=1:size(channels,2)
         
@@ -53,15 +68,17 @@ function chanData = msound_get_chan(P, mgrid, xdcr)
                 chanNow=chanNow(idL,idE);
         end
         
-        % copy "chanNow" over time
-        chanNow=repmat( permute(chanNow,[3,1,2]), [size(P_red,1),1,1] );
+        % copy "chanNow" to match dimensions of "P_red"
+        chan4D=false(size(P_red));
+        chan4D(:,:,:,line)=repmat( permute(chanNow,[3,1,2]), [size(P_red,1),1,1] );
         
         % get pressure readings, only for the current channel
-        P_now=reshape(P_red(chanNow), size(P_red,1), []);
+        P_now=reshape(P_red(chan4D), size(P_red,1), []);
         
         % combine all pressure readings in "P_now" into a single vector,
         % and save that sum as the current channel
-        chanData(:,chL,chE)=mean(P_now,2);
+        chanData(:,chL,chE,line)=mean(P_now,2);
+    end
     end
     end
     
