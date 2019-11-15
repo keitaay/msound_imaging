@@ -37,8 +37,8 @@ function medium=msound_medium(mgrid, fc, phtType)
     cb0=2;
     
     % non-reflecting layer settings
-    NRLgamma=0.2;
-    NRLalpha=0.05;
+    NRLgamma=1;
+    NRLalpha=0.2;
     
     % define template for matrices of material properties
     if nD==1, map_base=zeros(mgrid.num_x+1, 1); end

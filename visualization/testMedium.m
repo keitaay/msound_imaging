@@ -16,14 +16,26 @@ function testMedium(mgrid,medium,xdcr)
 % 2019-10-29 - Keita Yokoyama (UNC/NCSU)
 %              added indicators for transducer position for
 %              users with the Image Processing Toolbox installed
+% 2019-11-14 - Keita Yokoyama (UNC/NCSU)
+%              added imaging of absorption layer cross-section
+    
+% define number of dimensions in simulation
+    nD=msound_nDim(mgrid);
 
-    % create universal plot information
-    vec_lat=1000*mgrid.x;
-    vec_axi=1000*(mgrid.y' - xdcr.plane_depth);
+% create universal plot information
+    if nD==1
+        error('This function does not support plots in 1D simulations.');
+    elseif nD==2
+        vec_lat=1000*mgrid.x;
+        vec_axi=1000*(mgrid.y' - xdcr.plane_depth);
+    elseif nD==3
+        vec_lat=1000*mgrid.x;
+        vec_axi=1000*(mgrid.z' - xdcr.plane_depth);
+    end
     x_annot='Lateral (mm)';   y_annot='Axial (mm)';
    
     
-    % if image processing toolbox exists, prepare to draw image
+% if image processing toolbox exists, prepare to draw image
     if license('test', 'image_toolbox')
         xdcLoc=@(ax,color) ...
             drawrectangle(ax,...
@@ -37,49 +49,64 @@ function testMedium(mgrid,medium,xdcr)
         xdcLoc=@(ax,color) false;
     end
     
-    figure;
+    figure('Position',[0 0 1500 600]);
 % speed of sound (acoustic scatterers modeled here)
-    subplot(2,3,1)
+    subplot(2,5,1)
         imagesc(vec_lat, vec_axi, medium.c);        
         axis image; xlabel(x_annot); ylabel(y_annot); cb=colorbar;
         title('Speed of Sound');   colormap(gca,'parula'); ylabel(cb,'m/s')
         xdcLoc(gca,'red');
         
 % density
-    subplot(2,3,2)
+    subplot(2,5,2)
         imagesc(vec_lat, vec_axi, medium.rho)
         axis image; xlabel(x_annot); ylabel(y_annot); cb=colorbar;
         title('Density');          colormap(gca,'cool');   ylabel(cb,'kg/m^{3}')
         xdcLoc(gca,'black');
         
 % nonlinearity coefficient
-    subplot(2,3,3)
+    subplot(2,5,3)
         imagesc(vec_lat, vec_axi, medium.beta)
         axis image; xlabel(x_annot); ylabel(y_annot); cb=colorbar;
         title('Nonlinearity');     colormap(gca,'autumn'); ylabel(cb,'nonlinearity')
         xdcLoc(gca,'cyan');
         
 % attenuation coefficient
-    subplot(2,3,4)
+    subplot(2,5,6)
         imagesc(vec_lat, vec_axi, medium.ca)
         axis image; xlabel(x_annot); ylabel(y_annot); cb=colorbar;
         title('Attenuation');      colormap(gca,'bone');   ylabel(cb,'dB/cmMHz')
         xdcLoc(gca,'yellow');
         
 % power law exponent (2 = thermoviscous; no dispsersion)
-    subplot(2,3,5)
+    subplot(2,5,7)
         imagesc(vec_lat, vec_axi, medium.cb)
         axis image; xlabel(x_annot); ylabel(y_annot); cb=colorbar;
         title('Power Law Exponent');colormap(gca,'pink');  ylabel(cb,'Power Law Exp.')
         xdcLoc(gca,'magenta');
     
 % composite of above five parameters
-    subplot(2,3,6)
+    subplot(2,5,8)
         Z=getZ(medium);
         imagesc(vec_lat, vec_axi, Z)
         axis image; xlabel(x_annot); ylabel(y_annot); cb=colorbar;
         title('Multiparametric');  colormap(gca,'parula');  ylabel(cb,'a.u.')
         xdcLoc(gca,'red');
+        
+        
+    subplot(2,5,[4 5 9 10])
+    % based on letter to editor in JASA 2012 vol 131, p999 (Yun Jing, NCSU)
+    % "On the use of an absorption layer for the angular spectrum approach"
+        if isfield(medium,'NRL_gamma')
+            gamma = medium.NRL_gamma./...
+                    (cosh(medium.NRL_alpha.*mgrid.abx_vec)).^2;
+        else
+            gamma=zeros(mgrid.num_x,1);
+        end
+        plot(vec_lat, gamma, 'linewidth',2); axis square
+        xlabel(x_annot); ylabel('Absorption Magnitude (a.u.)');
+        title('Absorption Strength');
+        
 end
 function Z=getZ(med)
     % normalize each of the 5 features...

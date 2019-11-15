@@ -21,11 +21,14 @@ function chanData = msound_get_chan(P, mgrid, xdcr)
 
 % 2019-10-31 - Keita Yokoyama (UNC/NCSU)
 %              initial version
+% 2019-11-14 - Keita Yokoyama (UNC/NCSU)
+%              added support for pressure inputs of multiple transmits
+%              (element in cell array = individual transmit sequence)
     
-    % define number of dimensions in simulation
+% define number of dimensions in simulation
     nD=msound_nDim(mgrid);
     
-    % concatenate waveforms from all lines into single matrix
+% concatenate waveforms from all lines into single matrix
 %ACCOUNT FOR ANGULAR SENSITIVITY HERE?
     if iscell(P) % presumes all pressure output matrices have same dimensions
         Nlines=length(P);
@@ -38,15 +41,15 @@ function chanData = msound_get_chan(P, mgrid, xdcr)
     else, Nlines=1; P_red=P;
     end
     
-    % average pressure waveform readings across transducer's
-    % axial thickness (AKA axial range of region of simulation recording)
-    % - dimensions: 1=time, 2=axial, 3=lateral, 4=elev., 5=line
+% average pressure waveform readings across transducer's
+% axial thickness (AKA axial range of region of simulation recording)
+% - dimensions: 1=time, 2=axial, 3=lateral, 4=elev., 5=line
     P_red=permute( mean(P_red,2), [1,3,4,5,2]);
     
-    % get channel ID
+% get channel ID
     channels=xdcr.chanID;
     
-    % for each line + channel...
+% for each line + channel...
     chanData=zeros(size(P_red,1), xdcr.Nelem(1), xdcr.Nelem(2), Nlines);
     for line=1:Nlines
     for chL=1:size(channels,1)
@@ -72,7 +75,8 @@ function chanData = msound_get_chan(P, mgrid, xdcr)
         chan4D=false(size(P_red));
         chan4D(:,:,:,line)=repmat( permute(chanNow,[3,1,2]), [size(P_red,1),1,1] );
         
-        % get pressure readings, only for the current channel
+        % get pressure readings, only for the current channel, and
+        % reformat into a 2D matrix (time x subelements)
         P_now=reshape(P_red(chan4D), size(P_red,1), []);
         
         % combine all pressure readings in "P_now" into a single vector,

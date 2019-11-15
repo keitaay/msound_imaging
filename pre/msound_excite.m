@@ -25,6 +25,9 @@ function exci=msound_excite(mgrid, medium, xdcr, varargin)
 % 2019-10-29 - Keita Yokoyama (UNC/NCSU)
 %              generalized function for 1/2/3-D environments;
 %              added more helpful help texts
+% 2019-11-14 - Keita Yokoyama (UNC/NCSU)
+%              modified output scheme to allow for multiple transmits in
+%              one imaging sequence (e.g. multiline conventional imaging)
     
 % define number of dimensions in simulation
     nD=msound_nDim(mgrid);
@@ -51,18 +54,22 @@ function exci=msound_excite(mgrid, medium, xdcr, varargin)
 % define focus and F-number
         switch length(varargin)
             case 0 % inputted: n/a
-                focus=xdcr.focus;
-                exci(line).Fnum=[focus/xdcr.dim(1), focus/xdcr.dim(2)];
+                exci(line).focus=xdcr.focus;
+                exci(line).Fnum=[exci(line).focus/xdcr.dim(1),...
+                                 exci(line).focus/xdcr.dim(2)];
 
             case 1 % inputted: focus
-                focus=varargin{1};
-                if isinf(focus), exci(line).Fnum=[0, 0];
-                else,            exci(line).Fnum=[focus/xdcr.dim(1), focus/xdcr.dim(2)];
+                exci(line).focus=varargin{1};
+                if isinf( exci(line).focus )
+                    exci(line).Fnum=[0, 0];
+                else
+                    exci(line).Fnum=[exci(line).focus/xdcr.dim(1),...
+                                     exci(line).focus/xdcr.dim(2)];
                 end
 
             case 2 % inputted: focus, F-number
-                focus=varargin{1};
-                if isinf(focus)
+                exci(line).focus=varargin{1};
+                if isinf( exci(line).focus )
                     warning('Plane-wave transmit detected! Ignoring F-number input.');
                     exci(line).Fnum=[0, 0];
                 else
@@ -71,29 +78,31 @@ function exci=msound_excite(mgrid, medium, xdcr, varargin)
         end
 
 % using F-number, derive size of active aperture
-        if isinf(focus), aperSize=xdcr.dim; else, aperSize=focus./exci(line).Fnum; end
+        if isinf(exci(line).focus)
+            aperSize=xdcr.dim;
+        else
+            aperSize=exci(line).focus./exci(line).Fnum;
+        end
 
 % create time vector
         exci(line).t=(-4/xdcr.fc : mgrid.dt : 4/xdcr.fc)';
 
-% define impulse response function as:   h = sin( ka t ) * exp( kb t^2 )
+% define coefficients for impulse response function, taking the form:
+% h = sin( ka t ) * exp( kb t^2 )
         ka=2*pi*xdcr.fc;   kb=-xdcr.fc^2/2;
 
 % define incident pressure
         exci(line).P0=1e6;
 
         if nD==1
-% calculate impulse response
-            t_imp=exci(line).t;
-            h=sin(ka.*t_imp).*exp(kb.*t_imp.^2);
-
-% focusing, time delays etc. are trivial in a 1-D case
-            exci(line).Pchan=exci(line).P0 .* h;
-            exci(line).Pi=exci(line).Pchan;
+            t_imp=exci(line).t;                  % define impulse response's time vector
+            h=sin(ka.*t_imp).*exp(kb.*t_imp.^2); % calculate base transmit waveform
+            exci(line).Pchan=exci(line).P0 .* h; % set transmit pres. for all channels
+            exci(line).Pi=exci(line).Pchan;      % set transmit across init. cond. mask
 
         else
-% calculate time delays in each element for focusing
-            if isinf(focus)
+            % calculate time delays in each element for focusing
+            if isinf( exci(line).focus )
                 delay=zeros(1, size(xdcr.chanID,1),size(xdcr.chanID,2));
             else
                 latPos=nan(size(xdcr.chanID,1), 1);  % prepare to find lat. pos. of elem.
@@ -104,29 +113,29 @@ function exci=msound_excite(mgrid, medium, xdcr, varargin)
                 elePos=elePos-posNow(2);             % shift focus by elevat. line pos.
                 x=repmat(latPos,  1,length(elePos)); % 2-D matrix of lat position
                 y=repmat(elePos', length(latPos),1); % 2-D amtrix of elev. posit.
-                delay=sqrt(x.^2 + y.^2 + focus.^2)./medium.c0;
+                delay=sqrt(x.^2 + y.^2 + exci(line).focus.^2)./medium.c0;
             end
             delay=delay-min(delay(:));
 
-% create time vector for duration of impulse
+            % create time vector for duration of impulse
             num_t=knnsearch(mgrid.t', max(delay(:)));
             delay_ext=( exci(line).t(1)  - mgrid.dt*floor(num_t/2) : mgrid.dt :...
                         exci(line).t(end)+ mgrid.dt*floor(num_t/2))';
 
-% change element-wise delays into 3-D matrix for easier finding
+            % change element-wise delays into 3-D matrix for easier finding
             delay=permute(delay, [3,1,2]);
 
-% use matrix of time delay values to calculate waveform for transmitted pulse
+            % use matrix of time delay values to calculate waveform for transmitted pulse
             t_imp=repmat( delay_ext, [1, size(delay,2), size(delay,3)]) +...
                   repmat( delay,     [length(delay_ext), 1, 1]);
 
-% calculate impulse response at all of above timepoints/element positions
+            % calculate impulse response at all of above timepoints/element positions
             h=sin(ka.*t_imp).*exp(kb.*t_imp.^2);
 
-% scale excitation by peak pressure out
+            % scale excitation by peak pressure out
             exci(line).Pchan=exci(line).P0 .* h;
 
-% prepare storage matrix for transmit pressure waveforms
+            % prepare storage matrix for transmit pressure waveforms
             if nD==2, exci(line).Pi=permute( zeros(size(xdcr.mask,1),...
                                                    size(t_imp,1)), [2,1]);
             else,     exci(line).Pi=permute( zeros(size(xdcr.mask,1),...
@@ -134,7 +143,7 @@ function exci=msound_excite(mgrid, medium, xdcr, varargin)
                                                    size(t_imp,1)), [3,1,2]);
             end
 
-% apply channel-based pressure waveform to simulation grid
+            % apply channel-based pressure waveform to simulation grid
             for chE=1:size(xdcr.chanID,2)
             for chL=1:size(xdcr.chanID,1)
                 chanNow=xdcr.chanID(chL,chE);
@@ -156,7 +165,7 @@ function exci=msound_excite(mgrid, medium, xdcr, varargin)
             end
             end
 
-% zero out elements that fall outside of current F-number
+            % zero out elements that fall outside of current F-number
             if nD==2
                 exci(line).Pi(:, abs(mgrid.x) > aperSize(1)/2)=0;
             else

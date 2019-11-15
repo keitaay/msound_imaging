@@ -28,9 +28,8 @@ function [RF,axial] = msound_beamform(chanData, mgrid, medium, xdcr, exci)
 %              added Hanning apodization; re-formatted to deal with
 %              matrix probe-like datasets (via msound_reform.m) by default
 % 2019-11-13 - Keita Yokoyama (UNC/NCSU)
-%              reformatted delay-sum scheme to only output individual
-%              A-lines (will support B-mode outputs after reformatting
-%              transmit sequence)
+%              reformatted delay-sum scheme to accept channel data for
+%              multiple transmit-receive sequences
 
 % define number of dimensions in simulation
     nD=msound_nDim(mgrid);
@@ -45,11 +44,13 @@ function [RF,axial] = msound_beamform(chanData, mgrid, medium, xdcr, exci)
         case 3, axial=axial-(xdcr.plane_depth-mgrid.z(1));
     end
     
-% extract lateral/elevational positions of each scan line
-    numLines=size(chanData,4);  lineL=zeros(numLines,1);  lineE=lineL;
+% extract lateral/elevational positions of each scan line + foci
+    numLines=size(chanData,4);
+    lineL=zeros(numLines,1);  lineE=lineL;   focus=lineL;
     for lineID=1:numLines
         lineL(lineID)=exci(lineID).linepos(1);
         lineE(lineID)=exci(lineID).linepos(2);
+        focus(lineID)=exci(lineID).focus;
     end
     lineL=unique(lineL);  numLineL=length(lineL);
     lineE=unique(lineE);  numLineE=length(lineE);
@@ -77,17 +78,14 @@ function [RF,axial] = msound_beamform(chanData, mgrid, medium, xdcr, exci)
 % convert lateral/elevational line indices to line ID for "chanData"
         lineID=latline+(eleline-1)*numLineL;
         
-% get label vectors for all channels with respect to line position
+% dynamic-focus receive: get label vectors for all channels wrt line position
         lat1D=chanL'+lineL(latline); if isempty(lat1D), lat1D=0; end
         ele1D=chanE+lineE(eleline);  if isempty(ele1D), ele1D=0; end
 
-% create matrix version of label vectors
-        axi3D=repmat(axial, [1, size(chanData,2), size(chanData,3)]);
-        lat3D=repmat(lat1D, [size(chanData,1), 1, size(chanData,3)]);
-        ele3D=repmat(ele1D, [size(chanData,1), size(chanData,2), 1]);
-        
 % dynamic-focus receive: calculate time delays for each depth/line position
-        delay=sqrt( axi3D.^2 + lat3D.^2 + ele3D.^2 )./medium.c0;
+%%%
+delay=sqrt(  )./medium.c0;
+%%%
         
 % dynamic-focus receive: find indices to shift pressure data
         delay_shift=repmat( min(min(delay,[],3),[],2),...

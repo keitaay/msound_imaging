@@ -47,12 +47,15 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
 % 2019-10-29 - Keita Yokoyama (UNC/NCSU)
 %              generalized function for 1/2/3-D environments;
 %              added more helpful help texts
+% 2019-11-14 - Keita Yokoyama (UNC/NCSU)
+%              added channel maps etc. for multiple transmits +
+%              easier beamforming
 
     % define number of dimensions in simulation
     nD=msound_nDim(mgrid);
     
     % default parameters for whole transducer
-    xdcr.dim=[10, 5]*1e-3;         % [lat x ele] size of smallest transducer cross-section
+    xdcr.dim=[5, 5]*1e-3;          % [lat x ele] size of smallest transducer cross-section
     xdcr.focus=(mgrid.y_length/2); % focal depth
     xdcr.kerf=[mgrid.dx, mgrid.dy];% [lat x ele] kerf (spacing between elements)
     
@@ -100,8 +103,7 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
     % (for values that do not depend on the simulation dimension)
     xdcr.pitch=xdcr.kerf+xdcr.elemsize;
     
-    switch nD
-        case 1
+    if nD==1
             % initialize transducer mask
             xdcr.mask=zeros(mgrid.num_x+1, 1);
             
@@ -121,8 +123,8 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
             xdcr.Nelem=[1, 1];
             xdcr.chanID=1;
             xdcr.chanLoc={0,0};
-            
-        case 2
+    else
+        if nD==2
             % initialize transducer mask
             xdcr.mask=zeros(mgrid.num_x, mgrid.num_y+1);
             
@@ -146,43 +148,11 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
             id_pL=id_eL+id_kL;               % pitch
             
             % identify grid indices for edges of transducer
-            id_edgeL=[knnsearch(mgrid.x',-xdcr.dim(1)/2) knnsearch(mgrid.x', xdcr.dim(1)/2)];
+            id_edgeL=[knnsearch(mgrid.x',-xdcr.dim(1)/2),...
+                      knnsearch(mgrid.x', xdcr.dim(1)/2)];
+            id_edgeE=[1, 1];  id_eE=1;  id_pE=1;
             
-            % count number of elements in each direction
-            xdcr.Nelem=[length( id_edgeL(1):id_pL:id_edgeL(2) ), 1];
-            
-            % map elements of transducer to the "transducer mask"
-            %   (...which is just a spatial range from where pressures
-            %    are recorded within the mSOUND simulation)
-            chanID=0;
-            idxLat=id_edgeL(1):id_pL:id_edgeL(2);
-            
-            % create map of transducer, looking along axial direction
-            xdcr.chanmap=sum( xdcr.mask(:,axi_xdcr_loc), 2)./numLayers;
-            xdcr.chanID=nan(length(idxLat), 1);
-            xdcr.chanLoc=cell(length(idxLat), 1);
-            
-            for i=1:length(idxLat)
-                % designate ID of current channel
-                chanID=chanID+1;  la=idxLat(i);
-                
-                % designate indices in "chanmap" for this channel
-                lat_inElem=          la                  :min([ la+id_eL, id_edgeL(2) ]);
-                latspacing=min([ la+id_eL, id_edgeL(2) ]):min([ la+id_pL, id_edgeL(2) ]);
-                
-                % apply channel ID + mask for kerf in current element
-                xdcr.chanmap(lat_inElem)=chanID;
-                xdcr.chanmap(latspacing)=0;
-                
-                % add current channel to map of channel IDs
-                xdcr.chanID(i)=chanID;
-                
-                % identify position of the center of current element
-                lat_ctrElem=lat_inElem( round(length(lat_inElem)/2) );
-                xdcr.chanLoc{i,1}=[mgrid.x(lat_ctrElem), 0];
-            end
-            
-        case 3
+        else
             % initialize transducer mask
             xdcr.mask=zeros(mgrid.num_x, mgrid.num_y, mgrid.num_z+1);
             
@@ -212,52 +182,60 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
                       knnsearch(mgrid.x', xdcr.dim(1)/2)];
             id_edgeE=[knnsearch(mgrid.y',-xdcr.dim(2)/2),...
                       knnsearch(mgrid.y', xdcr.dim(2)/2)];
+        end
+        
+        % count number of elements in each direction
+        xdcr.Nelem=[length( id_edgeL(1):id_pL:id_edgeL(2) ),...
+                    length( id_edgeE(1):id_pE:id_edgeE(2) )];
+
+        % map elements of transducer to the "transducer mask"
+        %   (...which is just a spatial range from where pressures
+        %    are recorded within the mSOUND simulation)
+        chanID=0;
+        idxLat=id_edgeL(1):id_pL:id_edgeL(2);
+        idxEle=id_edgeE(1):id_pE:id_edgeE(2);
+
+        % create map of transducer, looking along axial direction
+        if nD==2, xdcr.chanmap=sum( xdcr.mask(:,  axi_xdcr_loc), 2)./numLayers;
+        else,     xdcr.chanmap=sum( xdcr.mask(:,:,axi_xdcr_loc), 3)./numLayers;
+        end
+        xdcr.chanID=nan(length(idxLat), length(idxEle));
+        xdcr.chanLoc=cell(length(idxLat), length(idxEle));
+
+        for i=1:length(idxLat)
+        for j=1:length(idxEle)
+            % designate ID of current channel
+            chanID=chanID+1;  la=idxLat(i);  el=idxEle(j);
+
+            % designate indices in "chanmap" for this channel
+            lat_inElem=          la                  :min([ la+id_eL-1, id_edgeL(2) ]);
+            latspacing=min([ la+id_eL, id_edgeL(2) ]):min([ la+id_pL,   id_edgeL(2) ]);
+            ele_inElem=          el                  :min([ el+id_eE-1, id_edgeE(2) ]);
+            elespacing=min([ el+id_eE, id_edgeE(2) ]):min([ el+id_pE,   id_edgeE(2) ]);
+
+            % apply channel ID + mask for kerf in current element
+            xdcr.chanmap(lat_inElem, elespacing)=0;
+            xdcr.chanmap(latspacing, ele_inElem)=0;
+            xdcr.chanmap(lat_inElem, ele_inElem)=chanID;%assignment overrules zeros
+
+            % add current channel to map of channel IDs
+            xdcr.chanID(i,j)=chanID;
+
+            % identify position of the center of current element
+            lat_ctrElem=lat_inElem( round(length(lat_inElem)/2) );
+            ele_ctrElem=ele_inElem( round(length(ele_inElem)/2) );
             
-            % count number of elements in each direction
-            xdcr.Nelem=[length( id_edgeL(1):id_pL:id_edgeL(2) ),...
-                        length( id_edgeE(1):id_pE:id_edgeE(2) )];
-            
-            % map elements of transducer to the "transducer mask"
-            %   (...which is just a spatial range from where pressures
-            %    are recorded within the mSOUND simulation)
-            chanID=0;
-            idxLat=id_edgeL(1):id_pL:id_edgeL(2);
-            idxEle=id_edgeE(1):id_pE:id_edgeE(2);
-            
-            % create map of transducer, looking along axial direction
-            xdcr.chanmap=sum( xdcr.mask(:,:,axi_xdcr_loc), 3)./numLayers;
-            xdcr.chanID=nan(length(idxLat), length(idxEle));
-            xdcr.chanLoc=cell(length(idxLat), length(idxEle));
-            
-            for i=1:length(idxLat)
-            for j=1:length(idxEle)
-                % designate ID of current channel
-                chanID=chanID+1;  la=idxLat(i);  el=idxEle(j);
-                
-                % designate indices in "chanmap" for this channel
-                lat_inElem=          la                  :min([ la+id_eL, id_edgeL(2) ]);
-                latspacing=min([ la+id_eL, id_edgeL(2) ]):min([ la+id_pL, id_edgeL(2) ]);
-                ele_inElem=          el                  :min([ el+id_eE, id_edgeE(2) ]);
-                elespacing=min([ el+id_eE, id_edgeE(2) ]):min([ el+id_pE, id_edgeE(2) ]);
-                
-                % apply channel ID + mask for kerf in current element
-                xdcr.chanmap(lat_inElem, ele_inElem)=chanID;
-                xdcr.chanmap(lat_inElem, elespacing)=0;
-                xdcr.chanmap(latspacing, ele_inElem)=0;
-                
-                % add current channel to map of channel IDs
-                xdcr.chanID(i,j)=chanID;
-                
-                % identify position of the center of current element
-                lat_ctrElem=lat_inElem( round(length(lat_inElem)/2) );
-                ele_ctrElem=ele_inElem( round(length(ele_inElem)/2) );
+            if nD==2
+                xdcr.chanLoc{i,1}=[mgrid.x(lat_ctrElem), 0];
+            else
                 xdcr.chanLoc{i,j}=[mgrid.x(lat_ctrElem), mgrid.y(ele_ctrElem)];
             end
-            end
-            
-            % FOR DEBUG: create map of channels
-            %figure;
-            %imagesc(1000*mgrid.x(lat_xdcr_loc), 1000*mgrid.y(ele_xdcr_loc), xdcr.chanmap');
-            %axis image;  ylabel('Elev');  xlabel('Lat')
+        end
+        end
+
+        % FOR DEBUG: create map of channels
+        %figure;
+        %imagesc(1000*mgrid.x(lat_xdcr_loc), 1000*mgrid.y(ele_xdcr_loc), xdcr.chanmap');
+        %axis image;  ylabel('Elev');  xlabel('Lat')
     end
 end

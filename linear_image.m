@@ -2,11 +2,11 @@ close all; clear variables; clc; addpath(genpath(pwd));
 
 %% grid
 % wave/transducer definition
-fc=6E6;   fs=fc*10;
+fc=4E6;   fs=fc*10;
 
 % worldgrid
-size_axi=0.03;   step_axi=1e-4; % direction of wave transmission
-size_lat=0.02;   step_lat=1e-4;
+size_axi=0.02;   step_axi=1e-4; % direction of wave transmission
+size_lat=0.015;  step_lat=1e-4;
 size_ele=0.005;  step_ele=1e-4;
 size_t = 4e-5;   step_t = 1/fs;
 
@@ -21,8 +21,9 @@ xdcr=msound_xdcr(mgrid, fc);
 exci=msound_excite(mgrid, medium, xdcr);
 
 clearvars -except mgrid medium exci xdcr depth
+testMedium(mgrid,medium,xdcr)
 
-%% simulation/beamforming
+%% simulation
 order=1;
 
 Pcell=cell(length(exci),1);
@@ -35,12 +36,11 @@ for line=1:length(exci)
     
     Pcell{line}=msound_reform(P,mgrid,xdcr);
 end
+chanData=msound_get_chan(Pcell, mgrid, xdcr);
 
 %% beamforming
-chanData=msound_get_chan(Pcell, mgrid, xdcr);
 
 [RF,axial]=msound_beamform(chanData,mgrid,medium,xdcr,exci);
 
 %% Imaging
-%testMedium(mgrid,medium,xdcr)
 msound_images(RF, axial, mgrid)
