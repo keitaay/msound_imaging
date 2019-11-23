@@ -51,21 +51,21 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
 %              added channel maps etc. for multiple transmits +
 %              easier beamforming
 
-    % define number of dimensions in simulation
+% define number of dimensions in simulation
     nD=msound_nDim(mgrid);
     
-    % default parameters for whole transducer
-    xdcr.dim=[5, 5]*1e-3;          % [lat x ele] size of smallest transducer cross-section
+% default parameters for whole transducer
+    xdcr.dim=[10, 5]*1e-3;         % [lat x ele] size of smallest transducer cross-section
     xdcr.focus=(mgrid.y_length/2); % focal depth
     xdcr.kerf=[mgrid.dx, mgrid.dy];% [lat x ele] kerf (spacing between elements)
     
-    % default parameters for each element
+% default parameters for each element
     xdcr.fc=fc;                    % center frequency
     xdcr.elemsize=[0.2, 1]*1e-3;   % [lat x ele] element size
     xdcr.dynrange=60;              % dynamic range of element
     xdcr.angsens=45;               % angular sensitivity of element, in degrees
     
-    % default parameters to bee converted
+% default parameters to be converted
     numLayers=1;                   % axial thickness of pressure recording region
     depthRaw=0;                    % offset depth of transducer from grid edge
     switch nD
@@ -74,7 +74,7 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
         case 3, xdcr.plane_depth=mgrid.z( knnsearch(mgrid.z', mgrid.z(1)+depthRaw) );
     end
     
-    % add optional inputs, if defined
+% add optional inputs, if defined
     for nOpt=0:length(varargin)
         switch nOpt
             case 1, if ~isempty(varargin{1}),       xdcr.focus=varargin{1};  end
@@ -87,7 +87,7 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
         end
     end
     
-    % override manual inputs, if dimensions don't make sense
+% override manual inputs, if dimensions don't make sense
     switch nD
         case 1
             xdcr.dim=[0, 0];
@@ -99,8 +99,8 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
             xdcr.kerf=[xdcr.kerf(1), 0];
     end
     
-    % derive remaining parameters about the input
-    % (for values that do not depend on the simulation dimension)
+% derive remaining parameters about the input
+% (for values that do not depend on the simulation dimension)
     xdcr.pitch=xdcr.kerf+xdcr.elemsize;
     
     if nD==1
@@ -124,6 +124,7 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
             xdcr.chanID=1;
             xdcr.chanLoc={0,0};
     else
+% identify positions and indices of helpful features
         if nD==2
             % initialize transducer mask
             xdcr.mask=zeros(mgrid.num_x, mgrid.num_y+1);
@@ -188,20 +189,20 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
         xdcr.Nelem=[length( id_edgeL(1):id_pL:id_edgeL(2) ),...
                     length( id_edgeE(1):id_pE:id_edgeE(2) )];
 
-        % map elements of transducer to the "transducer mask"
-        %   (...which is just a spatial range from where pressures
-        %    are recorded within the mSOUND simulation)
+% map elements of the transducer to the "transducer mask" 
+% (which is just a spatial range to record the mSOUND simulation)
         chanID=0;
         idxLat=id_edgeL(1):id_pL:id_edgeL(2);
         idxEle=id_edgeE(1):id_pE:id_edgeE(2);
 
-        % create map of transducer, looking along axial direction
-        if nD==2, xdcr.chanmap=sum( xdcr.mask(:,  axi_xdcr_loc), 2)./numLayers;
-        else,     xdcr.chanmap=sum( xdcr.mask(:,:,axi_xdcr_loc), 3)./numLayers;
+% create map of transducer, looking along axial direction
+        if nD==2, xdcr.chanmap=zeros(size( mean(xdcr.mask(:,  axi_xdcr_loc), 2) ));
+        else,     xdcr.chanmap=zeros(size( mean(xdcr.mask(:,:,axi_xdcr_loc), 3) ));
         end
         xdcr.chanID=nan(length(idxLat), length(idxEle));
         xdcr.chanLoc=cell(length(idxLat), length(idxEle));
 
+% map out position of elements
         for i=1:length(idxLat)
         for j=1:length(idxEle)
             % designate ID of current channel
@@ -221,15 +222,27 @@ function xdcr=msound_xdcr(mgrid, fc, varargin)
             % add current channel to map of channel IDs
             xdcr.chanID(i,j)=chanID;
 
-            % identify position of the center of current element
-            lat_ctrElem=lat_inElem( round(length(lat_inElem)/2) );
-            ele_ctrElem=ele_inElem( round(length(ele_inElem)/2) );
-            
-            if nD==2
-                xdcr.chanLoc{i,1}=[mgrid.x(lat_ctrElem), 0];
+            % identify position of the center of current element (lateral)
+            if mod(length(lat_inElem),2)~=0
+                latID=lat_inElem( ceil(length(lat_inElem)/2) );
+                locLat=mgrid.x(latID);
             else
-                xdcr.chanLoc{i,j}=[mgrid.x(lat_ctrElem), mgrid.y(ele_ctrElem)];
+                latID=lat_inElem( floor(length(lat_inElem)/2) );
+                locLat=mean(mgrid.x([latID latID+1]));
             end
+            
+            % identify position of the center of current element (elev.)
+            if nD==2
+                locEle=0;
+            elseif mod(length(ele_inElem),2)==0
+                locEle=mgrid.y(ele_inElem( length(ele_inElem)/2 ));
+            else
+                ele1=ele_inElem( floor(length(ele_inElem)/2) );
+                ele2=ele_inElem(  ceil(length(ele_inElem)/2) );
+                locEle=mean(mgrid.x([ele1 ele2]));
+            end
+            
+            xdcr.chanLoc{i,j}=[locLat, locEle];
         end
         end
 
